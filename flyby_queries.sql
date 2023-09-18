@@ -1,4 +1,10 @@
 /* Find the flybys. */
+
+/* To run the queries, while in the `curious_data` directory, first setup the
+* db with `make clean && make`. Then to start querying, open a connection in
+* your terminal to the database with `psql enceladus`. Copy these queries and
+* run them in the terminal to see the results.  */
+
 /* Join the targets table to know what planet or moon the mission focused on.
  Get the title to determine what was the mission.*/
 select targets.description as target,
@@ -30,7 +36,7 @@ or title ilike '%fly by%';
 /* Use regex to take advantage of the pattern for Titan. T0 flyby, T3 flyby,
 * etc. Check all titles that start with T and have one or more numbers
 * following that end with the term flyby. ~* is a comparison operator that
-* tells Postgres this is a case-insensitive matwh operation. This returns 121
+* tells Postgres this is a case-insensitive match operation. This returns 121
 * rows. */
 select targets.description as target,
 time_stamp,
@@ -39,6 +45,15 @@ from events
 inner join targets on target_id=targets.id
 where title ~* '^T\d.*? flyby'
 order by time_stamp;
+
+/* How to determine the count: */
+select count(*)
+from events
+inner join targets on target_id=targets.id
+where title ~* '^T\d.*? flyby';
+/* count
+-------
+   121 */
 
 /* Check to see if the regex is too restrictive. Expand the filter to allow any
  word. 397 rows!*/
@@ -67,8 +82,8 @@ event      | MAG Titan observation
 time_stamp | 2004-07-02 05:30:21
 date       | 2004-07-02
 title      | T0 Flyby
-
 */
+
 select targets.description as target,
 event_types.description as event,
 time_stamp,
