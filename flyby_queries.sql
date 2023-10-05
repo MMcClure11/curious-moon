@@ -134,3 +134,83 @@ from import.master_plan
 where start_time_utc::date = '2005-02-17'
 order by start_time_utc::date;
 
+/* Restrict the query to a single day via casting. Turns the timestamp info a single day only instead of a day with hours, minutes, seconds… Cast `timestamptz` to a `date` */
+select targets.description as target,
+events.time_stamp,
+event_types.description as event
+from events
+inner join event_types on event_types.id = events.event_type_id
+inner join targets on targets.id = events.target_id
+where events.time_stamp::date='2005-02-17'
+order by events.time_stamp;
+/*
+      target       |     time_stamp      |                           event
+ Enceladus         | 2005-02-17 03:00:29 | Enceladus closest approach observation
+…
+*/
+
+/* Restrict the results so that Enceladus is the only target. Chain `and` clauses to further restric a query. */
+select targets.description as target,
+events.time_stamp,
+event_types.description as event
+from events
+inner join event_types on event_types.id = events.event_type_id
+inner join targets on targets.id = events.target_id
+where events.time_stamp::date='2005-02-17'
+and targets.description = 'enceladus'
+order by events.time_stamp;
+/* 
+ target | time_stamp | event 
+--------+------------+-------
+(0 rows)
+
+No results. Postgres is case sensitive.
+String comparison queries are fragile & slow. The Postgres engine has to do a lot of work to compare strings.
+Better to find the key value and use that in the query.
+Look in `targets` table for primary key that defines `Enceladus`target.
+*/
+select * from targets where description = 'Enceladus';
+/* description | id 
+-------------+----
+ Enceladus   | 28
+(1 row) 
+
+use the id as a filter instead
+*/
+
+select targets.description as target,
+events.time_stamp,
+event_types.description as event
+from events
+inner join event_types on event_types.id = events.event_type_id
+inner join targets on targets.id = events.target_id
+where events.time_stamp::date='2005-02-17'
+and targets.id = 28
+order by events.time_stamp;
+/*
+target   |     time_stamp      |                 event                  
+-----------+---------------------+----------------------------------------
+ Enceladus | 2005-02-17 00:00:29 | Enceladus
+ Enceladus | 2005-02-17 00:15:29 | CIRS FP1 integration / FP3 map
+(24 rows)
+
+Less fragile, faster.
+*/
+
+/*
+Sargeable & Non-Sargeable queries
+Sargeable => Search ARGument ABLE. Can the string query be optimized? Optimizable.
+Non-Sargeable => Not Optimizable.
+Based on the nature of the query itself.
+
+select * from events
+where description like 'closest%';
+
+No wild card before the string meaning the query planner could optimize the search by adding an index to the description field.
+
+Sequential scan => when Postgres has to search every row in the table and run a string comparison
+
+Try to use sargeable queries when possible, especially in produstion.
+*/
+
+/* Using a View to Make Querying Easier */
