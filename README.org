@@ -1,0 +1,197 @@
+Working through [Curious Moon](https://bigmachine.io/products/a-curious-moon/) by Rob Conery to improve my Postgres skills.
+
+#+TITLE: Notes on A Curious Moon
+#+AUTHOR: Meks McClure
+#+EMAIL: mmcclure0100@gmail.com
+#+PROPERTY: header-args:sql :engine postgresql
+#+PROPERTY: header-args:sql+ :dbhost $HOME/Projects/curious-moon/.tmp/db
+#+PROPERTY: header-args:sql+ :database enceladus
+
+* Transit
+** Creating the Enceladus Database
+
+#+begin_src sh :results silent
+  createdb enceladus
+#+end_src
+
+** The Master Plan Table
+
+Creating the table:
+
+#+begin_src sql :results silent
+  CREATE TABLE master_plan (
+      the_date date,
+      title varchar(100),
+      description text
+  );
+#+end_src
+
+Dropping the table:
+
+#+begin_src sql :results silent
+  DROP TABLE master_plan;
+#+end_src
+
+** Primary Keys and Sequences
+
+Use ~DROP IF EXISTS~ so no error is raised when trying to create a table that already exists. Add an ID ~PRIMARY KEY~ field of type ~serial~ to create a sequential, auto-incrementing, integer-based primary key.
+
+#+begin_src sql :results silent
+  DROP TABLE IF EXISTS master_plan;
+
+  CREATE TABLE master_plan (
+      id serial PRIMARY KEY,
+      the_date date,
+      title varchar(100),
+      description text
+  );
+#+end_src
+
+We can break down what ~serial~ is doing for us:
+
+#+begin_src sql :results silent :session 
+  DROP TABLE IF EXISTS master_plan;
+
+  CREATE TABLE master_plan (
+      id integer NOT NULL
+  );
+
+  -- Create a `sequence`
+  CREATE SEQUENCE master_plan_id_seq;
+
+  -- Set the default value of `id` to the next value in the sequence
+  ALTER TABLE master_plan
+      ALTER COLUMN id SET DEFAULT nextval('master_plan_id_seq');
+
+  -- Add a `constraint` such that `id` becomes the table's primary key
+  ALTER TABLE master_plan
+      ADD CONSTRAINT master_plan_pk PRIMARY KEY (id);
+#+end_src
+
+** Importing the Master Plan
+
+#+begin_quote
+What we did, during the 6 years while Cassini was in transit to Saturn, was to plan every single second of the mission, down to excruciating detail.
+    — Michele Dougherty, Cassini Scientist
+#+end_quote
+
+/Extract, transform, load (ETL)/ is the process of moving raw data from one system into another.
+
+- *Extraction* is pulling relevant data out of various systems. The NASA CSVs are an example of extracted data.
+- *Transformation* is ensuring *correct typing*, *completeness*, and *accuracy* of extracted data. This is the most involved part of the ETL process.
+- *Loading* is the act of pushing the extracted and transformed data into normal tables so it can be queried.
+
+** A Simple SQL Script
+
+We'll make a script, ~build.sql~, which can be pushed into ~psql~ via one of two methods:
+
+- =psql enceladus < build.sql=
+- =psql enceladus -f build.sql=
+
+Order of operations is important; everything should be dropped at the beginning of the script, if it exists, and created at the end.
+
+Note that the columns created map to the columns in the CSV and are created as ~text~ (we'll worry about typing later).
+
+#+begin_src sql
+  DROP TABLE IF EXISTS master_plan;
+
+  CREATE TABLE master_plan (
+      start_time_utc text,
+      duration text,
+      date text,
+      team text,
+      spass_type text,
+      target text,
+      request_name text,
+      library_definition text,
+      title text,
+      description text
+  );
+
+  COPY master_plan
+  FROM
+      '/Users/nscheurich/Projects/curious-moon/data/master_plan.csv' WITH DELIMITER ',' header csv;
+#+end_src
+
+#+RESULTS:
+| DROP TABLE   |
+|--------------|
+| CREATE TABLE |
+| COPY 61873   |
+
+** Using a Schema
+
+Postgres has a hierarchy:
+
+- *The cluster.* Set of servers (usually just one) that execute instructions.
+- *The database.* Self-evident.
+- *One or more schemas.* Sort of like namespaces. The default is ~public~.
+- *Tables, views, functions*, and other /relations/.
+
+#+NAME: build.sql
+#+begin_src sql :tangle scripts/build-123.sql
+  CREATE SCHEMA IF NOT EXISTS import;
+
+  DROP TABLE IF EXISTS import.master_plan;
+
+  CREATE TABLE import.master_plan (
+      start_time_utc text,
+      duration text,
+      date text,
+      team text,
+      spass_type text,
+      target text,
+      request_name text,
+      library_definition text,
+      title text,
+      description text
+  );
+
+  COPY master_plan
+  FROM
+      '/Users/nscheurich/Projects/curious-moon/data/master_plan.csv' WITH DELIMITER ',' header csv;
+#+end_src
+
+#+RESULTS: build.sql
+| CREATE SCHEMA |
+|---------------|
+| DROP TABLE    |
+| CREATE TABLE  |
+| COPY 61873    |
+
+** Using Make
+
+#+NAME: Makefile
+#+begin_src makefile :tangle Makefile
+  DB=enceladus
+  BUILD=${CURDIR}/build.sql
+  SCRIPTS=${CURDIR}/scripts
+  CSV='${CURDIR}/data/master_plan.csv'
+  MASTER=$(SCRIPTS)/import.sql
+  NORMALIZE = $(SCRIPTS)/normalize.sql
+
+  all: normalize
+    psql $(DB) -f $(BUILD)
+
+  master:
+    @cat $(MASTER) >> $(BUILD)
+
+  import: master
+    @echo "COPY import.master_plan FROM $(CSV) WITH DELIMETER ',' HEADER CSV;" >> $(BUILD)
+
+  normalize: import
+    @cat $(NORMALIZE) >> $(BUILD)
+
+  clean:
+    @rm -rf $(BUILD)
+#+end_src
+
+* In Orbit
+
+* Flybys
+
+* A Bent Field
+
+** E-0, The First Enceladus Flyby
+
+
