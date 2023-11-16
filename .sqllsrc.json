@@ -1,0 +1,8 @@
+{
+  "name": "curious_moon",
+  "adapter": "postgres",
+  "host": "localhost",
+  "port": 5432,
+  "user": "postgres",
+  "database": "enceladus"
+}
